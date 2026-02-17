@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Verification System</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --success-color: #27ae60;
+            --error-color: #e74c3c;
+            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e9ecef;
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 30px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 10px;
+            font-size: 1.5rem;
+            color: var(--text-color);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #7f8c8d;
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #357abd;
+        }
+
+        button.delete-btn {
+            background-color: var(--error-color);
+            padding: 5px 10px;
+            font-size: 12px;
+            width: auto;
+            margin-left: 10px;
+        }
+
+        button.delete-btn:hover {
+            background-color: #c0392b;
+        }
+
+        #result-enroll,
+        #result-verify {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: var(--success-color);
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: var(--error-color);
+            border: 1px solid #f5c6cb;
+        }
+
+        #users-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        #users-list li {
+            background: var(--secondary-color);
+            margin-bottom: 8px;
+            padding: 10px 15px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #users-list li span {
+            font-weight: 500;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Face Verification System</h1>
+
+    <div class="container">
+        <div class="card">
+            <h2>Enroll New User</h2>
+            <div class="form-group">
+                <label for="enroll-name">Full Name</label>
+                <input type="text" id="enroll-name" placeholder="Enter name">
+            </div>
+            <div class="form-group">
+                <label for="enroll-image">Face Image</label>
+                <input type="file" id="enroll-image" accept="image/*">
+            </div>
+            <button onclick="enrollUser()">Enroll User</button>
+            <div id="result-enroll"></div>
+        </div>
+
+        <div class="card">
+            <h2>Verify Identity</h2>
+            <div class="form-group">
+                <label for="verify-image">Upload Image to Verify</label>
+                <input type="file" id="verify-image" accept="image/*">
+            </div>
+            <button onclick="verifyUser()">Verify Identity</button>
+            <div id="result-verify"></div>
+        </div>
+
+        <div class="card">
+            <h2 style="display: flex; justify-content: space-between; align-items: center;">
+                Registered Users
+                <button onclick="fetchUsers()"
+                    style="width: auto; font-size: 0.8rem; padding: 5px 10px;">Refresh</button>
+            </h2>
+            <ul id="users-list">
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+
+        // Load users on startup
+        document.addEventListener('DOMContentLoaded', fetchUsers);
+
+        async function enrollUser() {
+            const name = document.getElementById('enroll-name').value;
+            const imageInput = document.getElementById('enroll-image');
+            const resultDiv = document.getElementById('result-enroll');
+
+            if (!name || imageInput.files.length === 0) {
+                showResult(resultDiv, "Please provide both name and image.", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('image', imageInput.files[0]);
+
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = "Processing...";
+            resultDiv.className = "";
+
+            try {
+                const response = await fetch(`${BASE_URL}/enroll`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult(resultDiv, data.message, "success");
+                    document.getElementById('enroll-name').value = '';
+                    imageInput.value = '';
+                    fetchUsers(); // Refresh list
+                } else {
+                    showResult(resultDiv, data.error || "Enrollment failed.", "error");
+                }
+            } catch (error) {
+                showResult(resultDiv, "Network error ocurred.", "error");
+            }
+        }
+
+        async function verifyUser() {
+            const imageInput = document.getElementById('verify-image');
+            const resultDiv = document.getElementById('result-verify');
+
+            if (imageInput.files.length === 0) {
+                showResult(resultDiv, "Please select an image.", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
+
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = "Verifying...";
+            resultDiv.className = "";
+
+            try {
+                const response = await fetch(`${BASE_URL}/verify`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    const msg = data.match
+                        ? `Match Found: ${data.name}`
+                        : "No Match Found (Unknown User)";
+                    showResult(resultDiv, msg, data.match ? "success" : "error");
+                } else {
+                    showResult(resultDiv, data.error || "Verification failed.", "error");
+                }
+            } catch (error) {
+                showResult(resultDiv, "Network error ocurred.", "error");
+            }
+        }
+
+        async function fetchUsers() {
+            const listElement = document.getElementById('users-list');
+            listElement.innerHTML = '<li style="text-align:center;">Loading...</li>';
+
+            try {
+                const response = await fetch(`${BASE_URL}/users`);
+                const users = await response.json();
+
+                listElement.innerHTML = '';
+                if (users.length === 0) {
+                    listElement.innerHTML = '<li>No users enrolled yet.</li>';
+                    return;
+                }
+
+                users.forEach(user => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span>${user.name} (ID: ${user.id})</span>
+                        <button class="delete-btn" onclick="deleteUser(${user.id})">Delete</button>
+                    `;
+                    listElement.appendChild(li);
+                });
+            } catch (error) {
+                listElement.innerHTML = '<li style="color:red">Failed to load users.</li>';
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm("Are you sure you want to delete this user?")) return;
+
+            try {
+                const response = await fetch(`${BASE_URL}/users/${id}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    fetchUsers(); // Refresh list
+                } else {
+                    alert("Failed to delete user.");
+                }
+            } catch (error) {
+                alert("Network error.");
+            }
+        }
+
+        function showResult(element, message, type) {
+            element.style.display = 'block';
+            element.textContent = message;
+            element.className = type;
+        }
+    </script>
+</body>
+
+</html>

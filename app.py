@@ -8,12 +8,16 @@ import mysql.connector # Library for MySQL database
 app = Flask(__name__, template_folder='home')
 
 # --- Database Config ---
+# Read settings from environment variables so no credentials live in the code.
+MATCH_TOLERANCE = float(os.environ.get("MATCH_TOLERANCE", 0.6))  # max embedding distance for a match
+
+
 def get_db_connection():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",      # Default XAMPP password is empty
-        database="face_recognition_db"
+        host=os.environ.get("DB_HOST", "localhost"),
+        user=os.environ.get("DB_USER", "root"),
+        password=os.environ.get("DB_PASSWORD", ""),
+        database=os.environ.get("DB_NAME", "face_recognition_db"),
     )
 
 # --- Helper Functions ---
@@ -43,10 +47,10 @@ def enroll_user():
     image_file = request.files['image']
 
     try:
-        # User behavior: Detect one face in the image.
+        # Detect one face in the image.
         image = face_recognition.load_image_file(image_file)  # Load image
         
-        # User behavior: Extract the face embedding.
+        # Extract the face embedding.
         # Ensure only one face is present for enrollment
         encodings = face_recognition.face_encodings(image)  # Extract face encodings
         
@@ -58,7 +62,7 @@ def enroll_user():
         known_face_encoding = encodings[0] # Get the first face encoding
         embedding_bytes = convert_embedding_to_bytes(known_face_encoding)
 
-        # User behavior: Store name and embedding in MySQL.
+        # Store name and embedding in MySQL.
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("INSERT INTO users (name, embedding) VALUES (%s, %s)", (name, embedding_bytes))
@@ -80,21 +84,21 @@ def verify_user():
     image_file = request.files['image']
 
     try:
-        # User behavior: Detect one face.
+        # Detect one face.
         image = face_recognition.load_image_file(image_file)  # Load input image
         face_locations = face_recognition.face_locations(image)  # Detect faces in the image
         
         if len(face_locations) == 0:
             return jsonify({"error": "No face detected"}), 400
             
-        # User behavior: Extract embedding.
+        # Extract embedding.
         # Extract face encodings from the detected faces
         face_encodings = face_recognition.face_encodings(image, face_locations)
         
         # Taking the first face found for verification
         face_encoding = face_encodings[0]
 
-        # User behavior: Load all embeddings from the database.
+        # Load all embeddings from the database.
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, embedding FROM users")
@@ -112,8 +116,8 @@ def verify_user():
             known_face_encodings.append(convert_bytes_to_embedding(row[2]))
             known_face_names.append(row[1])
 
-        # User behavior: Compare using face_recognition.compare_faces().
-        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)  # Compare detected face with known faces
+        # Compare using face_recognition.compare_faces().
+        matches = face_recognition.compare_faces(known_face_encodings, face_encoding, tolerance=MATCH_TOLERANCE)  # Compare detected face with known faces
         name = "Unknown"
         match_found = False
 
@@ -124,12 +128,13 @@ def verify_user():
         if matches[best_match_index]:  # If a match is found
             name = known_face_names[best_match_index]
             match_found = True
+        distance = float(face_distances[best_match_index])
             
         # Return match result and name if found.
         if match_found:
-            return jsonify({"message": "User verified", "name": name, "match": True}), 200
+            return jsonify({"message": "User verified", "name": name, "match": True, "distance": round(distance, 4)}), 200
         else:
-            return jsonify({"message": "User not found", "match": False}), 404
+            return jsonify({"message": "User not found", "match": False, "closest_distance": round(distance, 4)}), 404
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -141,7 +146,7 @@ def list_users():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # User behavior: Return all users. Do not return embeddings.
+        # Return all users. Do not return embeddings.
         cursor.execute("SELECT id, name FROM users")
         users = cursor.fetchall()
         conn.close()
@@ -159,7 +164,7 @@ def delete_user(user_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # User behavior: Remove the user from the database.
+        # Remove the user from the database.
         cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
         
@@ -175,4 +180,4 @@ def delete_user(user_id):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1", port=5000)

@@ -87,6 +87,8 @@ python -m faceverify.cli migrate
 
 A shift in that distribution (new camera, lighting, different users) changes accuracy without any error showing. Watching it is the simplest form of model monitoring. Each response carries an `X-Request-ID` that also appears in the JSON logs.
 
+Metrics are kept in memory per process. With several Gunicorn workers (`WEB_CONCURRENCY`, default 2), each scrape reaches one worker. Run one worker per container and scale with containers, or switch to `prometheus_client` in multiprocess mode.
+
 ## Fairness audit
 
 Face recognition error rates often differ between demographic groups (NIST FRVT Part 3, 2019). The audit measures this for this system, the way NIST does:

@@ -38,10 +38,12 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Smoke test the running container
         run: |
-          docker run -d --name fv -p 5000:5000 faceverify:ci
+          # one worker, so /metrics is read from the process that served /enroll
+          docker run -d --name fv -p 5000:5000 -e WEB_CONCURRENCY=1 faceverify:ci
           for i in $(seq 1 30); do curl -sf localhost:5000/health && break; sleep 2; done
           curl -sf localhost:5000/health | grep '"model":"dlib-resnet-128"'
-          python3 -c "from PIL import Image; Image.new('RGB',(120,120),(90,140,200)).save('blank.png')"
+          docker exec fv python -c "from PIL import Image; Image.new('RGB',(120,120),(90,140,200)).save('/tmp/blank.png')"
+          docker cp fv:/tmp/blank.png blank.png
           code=$(curl -s -o out.json -w '%{http_code}' -F name=test -F image=@blank.png localhost:5000/enroll)
           cat out.json; test "$code" = 400 && grep -q 'No face detected' out.json
           curl -sf localhost:5000/metrics | grep 'faceverify_decisions_total{result="no_face"} 1.0'

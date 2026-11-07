@@ -18,11 +18,13 @@ COPY home home
 COPY app.py schema.sql ./
 USER app
 
+# WEB_CONCURRENCY = number of Gunicorn worker processes (Gunicorn reads it directly)
 ENV DB_BACKEND=sqlite \
     SQLITE_PATH=/data/faces.db \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    WEB_CONCURRENCY=2
 VOLUME /data
 EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD python -c "import urllib.request,sys; sys.exit(urllib.request.urlopen('http://127.0.0.1:5000/health').status != 200)"
-CMD ["gunicorn", "--workers", "2", "--bind", "0.0.0.0:5000", "--timeout", "60", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "60", "app:app"]

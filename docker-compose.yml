@@ -1,0 +1,32 @@
+# docker compose up --build    ->  http://localhost:5000
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-change-me}
+      MYSQL_DATABASE: face_recognition_db
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-change-me}"]
+      interval: 5s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      DB_BACKEND: mysql
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-change-me}
+      DB_NAME: face_recognition_db
+      MATCH_TOLERANCE: ${MATCH_TOLERANCE:-0.6}
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:
